@@ -1,0 +1,418 @@
+import sys
+import os
+import re
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout, QScrollArea, QPushButton, QHBoxLayout
+from PyQt5.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QFont, QPalette
+from PyQt5.QtCore import Qt, QTimer, QTime, QCoreApplication, QDateTime
+
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+class X_target(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.initUI()
+
+
+    def initUI(self):
+        self.setWindowTitle('X-target')
+        self.setWindowIcon(QIcon('target.png'))
+        self.setGeometry(0, 0, 1800, 900)
+        
+        #메인 window을 변경할 색 지정
+        window_background_color = QColor(85,107,47)
+        text_color = QColor(255, 255, 255)
+
+        #메인 배경색만 변경하도록 palette 사용
+        palette = QPalette()
+        palette.setColor(QPalette.Window, window_background_color)
+        palette.setColor(QPalette.WindowText, text_color)
+        self.setPalette(palette)
+
+        #메인 widget
+        back_widget = QWidget(self)
+        back_widget.setGeometry(30, 20, 1700, 130)
+        back_widget.setStyleSheet("background-color: #98fb98;")
+
+        # 표적 이미지 불러오기 및 크기 조정
+        pixmap = QPixmap('dummy.png')
+        pixmap = pixmap.scaled(350, 350, Qt.KeepAspectRatio)
+
+        pixmap1 = QPixmap('dummy1.png')
+        pixmap1 = pixmap1.scaled(350, 350, Qt.KeepAspectRatio)
+
+        pixmap2 = QPixmap('dummy3.png')
+        pixmap2 = pixmap2.scaled(350, 350, Qt.KeepAspectRatio)
+
+        #표적 이미지를 담은 label 4개
+        label = QLabel(self)
+        label.setPixmap(pixmap2)    #dummy.png를 label 가운데 위치
+        label.setGeometry(30, 160, pixmap.width(), pixmap.height())
+        label.setStyleSheet("background-color: white;")
+
+        label1 = QLabel(self)
+        label1.setPixmap(pixmap1)
+        label1.setGeometry(400, 160, pixmap.width(), pixmap.height())
+        label1.setStyleSheet("background-color: white;")
+
+        label2 = QLabel(self)
+        label2.setPixmap(pixmap)
+        label2.setGeometry(780, 160, pixmap.width(), pixmap.height())
+        label2.setStyleSheet("background-color: white;")
+
+        label3 = QLabel(self)
+        label3.setPixmap(pixmap)
+        label3.setGeometry(1150, 160, pixmap.width(), pixmap.height())
+        label3.setStyleSheet("background-color: white;")
+
+        ###############################Camera1_2.txt 데이터값 저장 코드############################################
+        file_path = 'camera1_2.txt'
+
+        # 결과를 저장할 변수 초기화
+        time = None
+        camera1_data = {}
+        camera2_data = {}
+
+        # 파일 열기
+        with open(file_path, 'r') as file:
+            current_time = None  # 현재 시간 초기화
+            current_camera = None  # 현재 카메라 초기화
+
+            for line in file:
+                line = line.strip()  # 줄 끝의 공백 제거
+
+                # 시간 정보를 찾기
+                if re.match(r'\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}', line):
+                    current_time = line
+                elif line == 'camera1':
+                    current_camera = 'camera1'
+                    camera1_data[current_time] = []
+                elif line == 'camera2':
+                    current_camera = 'camera2'
+                    camera2_data[current_time] = []
+                elif current_camera:  # current_camera가 설정되어 있는 경우에만 데이터 읽기
+                    values = re.findall(r'\(([^)]+)', line)  # 정규 표현식을 사용하여 데이터 추출
+                    if current_camera == 'camera1':
+                        camera1_data[current_time].append(values)
+                    elif current_camera == 'camera2':
+                        camera2_data[current_time].append(values)
+
+        ##################################Camera3_4.txt 데이터값 저장 코드################################################
+        file_path1 = 'camera3_4.txt'
+
+        # 결과를 저장할 변수 초기화
+        time = None
+        camera3_data = {}
+        camera4_data = {}
+
+        # 파일 열기
+        with open(file_path1, 'r') as file:
+            current_time = None  # 현재 시간 초기화
+            current_camera = None  # 현재 카메라 초기화
+
+            for line in file:
+                line = line.strip()  # 줄 끝의 공백 제거
+
+                # 시간 정보를 찾기
+                if re.match(r'\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}', line):
+                    current_time = line
+                elif line == 'camera3':
+                    current_camera = 'camera3'
+                    camera3_data[current_time] = []
+                elif line == 'camera4':
+                    current_camera = 'camera4'
+                    camera4_data[current_time] = []
+                elif current_camera:  # current_camera가 설정되어 있는 경우에만 데이터 읽기
+                    values = re.findall(r'\(([^)]+)', line)  # 정규 표현식을 사용하여 데이터 추출
+                    if current_camera == 'camera3':
+                        camera3_data[current_time].append(values)
+                    elif current_camera == 'camera4':
+                        camera4_data[current_time].append(values)
+
+        ########################################finalFile.txt 좌표값 저장###################################################
+        file_path2 = 'finalFile.txt'
+
+        # 결과를 저장할 변수 초기화
+        time = None
+        final_camera1_data = {}
+        final_camera2_data = {}
+        final_camera3_data = {}
+        final_camera4_data = {}
+
+        # 파일 열기
+        with open(file_path2, 'r') as file:
+            current_time = None  # 현재 시간 초기화
+            current_camera = None  # 현재 카메라 초기화
+
+            for line in file:
+                line = line.strip()  # 줄 끝의 공백 제거
+
+                # 시간 정보를 찾기
+                if re.match(r'\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}', line):
+                    current_time = line
+                elif line == 'camera1':
+                    current_camera = 'camera1'
+                    final_camera1_data[current_time] = []
+                elif line == 'camera2':
+                    current_camera = 'camera2'
+                    final_camera2_data[current_time] = []
+                elif line == 'camera3':
+                    current_camera = 'camera3'
+                    final_camera3_data[current_time] = []
+                elif line == 'camera4':
+                    current_camera = 'camera4'
+                    final_camera4_data[current_time] = []
+                elif current_camera:  # current_camera가 설정되어 있는 경우에만 데이터 읽기
+                    values = re.findall(r'\(([^)]+)', line)  # 정규 표현식을 사용하여 데이터 추출
+                    if current_camera == 'camera1':
+                        final_camera1_data[current_time].append(values)
+                    elif current_camera == 'camera2':
+                        final_camera2_data[current_time].append(values)
+                    elif current_camera == 'camera3':
+                        final_camera3_data[current_time].append(values)
+                    elif current_camera == 'camera4':
+                        final_camera4_data[current_time].append(values)
+
+        #Camera1 좌표값 표시
+        # X 모양의 빨간색 라인을 추가합니다.
+        painter = QPainter(label.pixmap())
+        pen = QPen(QColor(255, 0, 0))
+        pen.setWidth(5) #굵기 조정
+        painter.setPen(pen)
+
+        for timestamp, data in camera1_data.items():
+            for bbox in data[0]:  # 'x,y,w,h' 형식의 데이터 추출
+                x, y, w, h = map(int, bbox.split(','))  # 좌표를 정수로 변환
+
+                # 중심 좌표 계산
+                center_x = x + w // 2
+                center_y = y + h // 2
+
+                # 십자선 그리기
+                painter.drawLine(center_x - w // 2, center_y, center_x + w // 2, center_y)  # 가로선
+                painter.drawLine(center_x, center_y - h // 2, center_x, center_y + h // 2)  # 세로선
+
+        #Camera2 좌표값 표시
+        painter = QPainter(label1.pixmap())
+        pen = QPen(QColor(255, 0, 0))
+        pen.setWidth(5) #굵기 조정
+        painter.setPen(pen)
+
+        for timestamp, data in camera2_data.items():
+            for bbox in data[0]:  # 'x,y,w,h' 형식의 데이터 추출
+                x, y, w, h = map(int, bbox.split(','))  # 좌표를 정수로 변환
+
+                # 중심 좌표 계산
+                center_x = x + w // 2
+                center_y = y + h // 2
+
+                # 십자선 그리기
+                painter.drawLine(center_x - w // 2, center_y, center_x + w // 2, center_y)  # 가로선
+                painter.drawLine(center_x, center_y - h // 2, center_x, center_y + h // 2)  # 세로선
+        
+        #Camera3 좌표값 표시
+        painter = QPainter(label2.pixmap())
+        pen = QPen(QColor(255, 0, 0))
+        pen.setWidth(5) #굵기 조정
+        painter.setPen(pen)
+
+        for timestamp, data in camera3_data.items():
+            for bbox in data[0]:  # 'x,y,w,h' 형식의 데이터 추출
+                x, y, w, h = map(int, bbox.split(','))  # 좌표를 정수로 변환
+
+                # 중심 좌표 계산
+                center_x = x + w // 2
+                center_y = y + h // 2
+
+                # 십자선 그리기
+                painter.drawLine(center_x - w // 2, center_y, center_x + w // 2, center_y)  # 가로선
+                painter.drawLine(center_x, center_y - h // 2, center_x, center_y + h // 2)  # 세로선
+
+        #Camera4 좌표값 표시
+        painter = QPainter(label3.pixmap())
+        pen = QPen(QColor(255, 0, 0))
+        pen.setWidth(5) #굵기 조정
+        painter.setPen(pen)
+
+        for timestamp, data in camera4_data.items():
+            for bbox in data[0]:  # 'x,y,w,h' 형식의 데이터 추출
+                x, y, w, h = map(int, bbox.split(','))  # 좌표를 정수로 변환
+
+                # 중심 좌표 계산
+                center_x = x + w // 2
+                center_y = y + h // 2
+
+                # 십자선 그리기
+                painter.drawLine(center_x - w // 2, center_y, center_x + w // 2, center_y)  # 가로선
+                painter.drawLine(center_x, center_y - h // 2, center_x, center_y + h // 2)  # 세로선
+
+        #Camera 1,2,3,4 를 모두 합하여 표시하는 label
+        label_3d = QLabel(self)
+        #label_3d.setPixmap(pixmap)     #사진 삽입 필요
+        label_3d.setGeometry(30, 530, 350, 350)
+        label_3d.setStyleSheet("background-color: white;")
+
+        #키네틱스 로고
+        pixmap0 = QPixmap('kinetix_logo_removebg.png')
+        kinetix_logo_label = QLabel(self)
+        kinetix_logo_label.setPixmap(pixmap0)
+        kinetix_logo_label.setScaledContents(True)
+        kinetix_logo_label.setGeometry(50, 15, 220, 80)
+
+        #camera 1,2,3,4 좌표값을 출력하는 라벨
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+
+        scroll_area = QScrollArea(central_widget)
+        scroll_area.setGeometry(500, 550, 1000, 300)
+        scroll_area.setWidgetResizable(True)
+        
+        scroll_content = QWidget()
+        scroll_area.setWidget(scroll_content)
+
+        layout = QVBoxLayout(scroll_content)
+
+        label5 = QLabel()
+        label5.setGeometry(0,0,800,200)
+        #label5.setAlignment(Qt.AlignLeft)
+        label5.setFont(QFont("Arial", 10))
+        label5.setStyleSheet("background-color: #70b070; color: white;")
+
+        #Camera1 데이터 처리
+        formatted_camera1_data = {}
+        for key, value in camera1_data.items():
+            items = [item.strip() for item in value[0] if item.strip()]
+            formatted_camera1_data[key] = ', '.join(items)
+
+        #Camera2 데이터 처리
+        formatted_camera2_data = {}
+        for key, value in camera2_data.items():
+            items = [item.strip() for item in value[0] if item.strip()]
+            formatted_camera2_data[key] = ', '.join(items)
+
+        #Camera3 데이터 처리
+        formatted_camera3_data = {}
+        for key, value in camera3_data.items():
+            items = [item.strip() for item in value[0] if item.strip()]
+            formatted_camera3_data[key] = ', '.join(items)
+
+        #Camera4 데이터 처리
+        formatted_camera4_data = {}
+        for key, value in camera4_data.items():
+            items = [item.strip() for item in value[0] if item.strip()]
+            formatted_camera4_data[key] = ', '.join(items)
+
+        label_text = "Camera1\n" + "\n".join([f"{k}: {v}" for k, v in formatted_camera1_data.items()])
+        label_text += "\n\nCamera2\n" + "\n".join([f"{k}: {v}" for k, v in formatted_camera2_data.items()])
+        label_text += "\n\nCamera3\n" + "\n".join([f"{k}: {v}" for k, v in formatted_camera3_data.items()])
+        label_text += "\n\nCamera4\n" + "\n".join([f"{k}: {v}" for k, v in formatted_camera4_data.items()])
+
+        label5.setText(label_text)
+
+        layout.addWidget(label5)
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.updateTime)
+        self.is_running = False
+
+        self.datetime_timer = QTimer(self)
+        self.datetime_timer.timeout.connect(self.updateDateTime)
+        self.datetime_timer.start(1000)  #1초마다 시간 업데이트
+
+        #elapsed time 라벨
+        self.label = QLabel(self)
+        self.label.setGeometry(380, 30, 300, 50)
+        self.label.setText("Elapsed Time: 00:00")
+        self.label.setStyleSheet("background-color: black; Color: white")
+        self.label.setFont(QFont('Arial', 20))
+
+        #start, stop 버튼
+        self.start_stop_button = QPushButton(self)
+        self.start_stop_button.setGeometry(280, 30, 100, 50)
+        self.start_stop_button.setText("Start")
+        self.start_stop_button.clicked.connect(self.toggleTimer)
+        self.start_stop_button.setStyleSheet('''QPushButton {background-color: #008000; color: #ffffff;} QPushButton:hover {background-color: #009500;}''')
+        self.start_stop_button.setFont(QFont('Arial', 15))
+
+        self. start_time = QTime(0, 0)
+
+        #현재 날짜와 시간
+        self.dateTimeLabel = QLabel(self)
+        self.dateTimeLabel.setGeometry(40, 85, 230, 60)
+        self.dateTimeLabel.setAlignment(Qt.AlignCenter)
+        self.dateTimeLabel.setStyleSheet("background-color: #008000; color: white")
+        self.dateTimeLabel.setFont(QFont('Arial', 15))
+
+        #탄약 수
+        shot_label = QLabel('# of Shot', self)
+        shot_label.setGeometry(700, 30, 150, 30)
+        shot_label.setFont(QFont('Arial', 15))
+        shot_label.setStyleSheet("background-color: #775e36;")
+
+        number_of_shot = 5
+        number_shot_label = QLabel(f'{number_of_shot}', self)
+        number_shot_label.setGeometry(850,30,150,30)
+        number_shot_label.setFont(QFont('Arial', 15))
+        number_shot_label.setStyleSheet("color: black;")
+
+        #타겟 거리
+        range_label = QLabel('Target Range', self)
+        range_label.setGeometry(1000,30,150,30)
+        range_label.setFont(QFont('Arial', 15))
+        range_label.setStyleSheet("background-color: #775e36;")
+
+        target_range = 25
+        show_range_label = QLabel(f'{target_range}M', self)
+        show_range_label.setGeometry(1150,30,150,30)
+        show_range_label.setFont(QFont('Arial', 15))
+        show_range_label.setStyleSheet("color: black;")
+
+
+
+
+        #종료 버튼  
+        btn1 = QPushButton('EXIT', self)
+        btn1.setFont(QFont('Arial', 20))
+        btn1.setGeometry(1550, 30, 150, 50)
+        btn1.setStyleSheet('''QPushButton {background-color : red ; Color : white;} QPushButton:hover {background-color: darkred;}''')
+
+        btn1.clicked.connect(QCoreApplication.instance().quit)
+
+        self.show()
+
+    def toggleTimer(self):
+        if not self.is_running:
+            if not self.start_time.isValid():
+                self.start_time = QTime.currentTime()
+            else:
+                elapsed_time = self.start_time.secsTo(QTime.currentTime())
+                self.start_time = self.start_time.addSecs(elapsed_time) #시작 시간을 업데이트
+            
+            self.timer.start(1000)  #타이머를 1초마다 호출
+            self.start_stop_button.setText("Stop")
+        else:
+            self.timer.stop()
+            self.start_stop_button.setText("Start")
+        self.is_running = not self.is_running
+    
+    def updateTime(self):
+        if self.is_running:
+            current_time = QTime.currentTime()
+            elapsed_time = self.start_time.secsTo(current_time)
+            minutes = (elapsed_time % 3600) // 60
+            seconds = elapsed_time % 60
+            time_str = f"Elapsed Time:{minutes:02}:{seconds:02}"
+            self.label.setText(time_str)
+
+    def updateDateTime(self):
+        currentDateTime = QDateTime.currentDateTime()
+        formattedDateTime = currentDateTime.toString('yyyy-MM-dd \n hh:mm:ss')
+        self.dateTimeLabel.setText(formattedDateTime)
+
+def main():
+    app = QApplication(sys.argv)
+    viewer = X_target()
+    sys.exit(app.exec_())
+
+if __name__ == '__main__':
+    main()
