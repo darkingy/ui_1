@@ -1,0 +1,332 @@
+import socket
+import sys
+import os
+import time
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout, QScrollArea, QPushButton, QTextEdit, QSlider
+from PyQt5.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QFont, QPalette
+from PyQt5.QtCore import Qt, QTimer, QTime, QCoreApplication, QDateTime
+
+#파일 경로를 프로그램 실행 위치로 변경 -> pixmap에 사용하는 이미지 찾기 편리
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+#테스트용 IP 및 port 번호
+IP = '127.0.0.1'
+PORT = 9988
+
+#실제 IP 및 port
+#IP = '192.168.0.36'
+#PORT = 9393
+
+#소켓 연결
+c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+c.connect((IP, PORT))
+print(f"서버에 연결되었습니다.")
+
+class XTarget(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+        #Target range 슬라이더
+        #슬라이더나 exit_button과 같은 GUI는 본 프로그램의 update_data의 메모리에 뭍혀 잘 안돌아 가는것 같아
+        #Thread형식으로 바꾸어 동시적으로 일어나는 이벤트를 잘 처리할 수 있도록 연구해야할 것 같음
+        #따라서 지금의 코드로는 slider는 UI에는 표시가 되나, 작동이 안됨.
+        self.range_slider = QSlider(Qt.Horizontal, self)
+        self.range_slider.setGeometry(1150, 30, 150, 30)
+        self.range_slider.setMinimum(1)
+        self.range_slider.setMaximum(100)
+        self.range_slider.setValue(25)
+        self.range_slider.valueChanged.connect(self.handle_slider_change)
+        
+        #1초에 한번씩 update_data
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.update_data)
+        self.update_timer.start(1000)
+        
+        #데이터 출력용 textedit 선언
+        self.text_edit1 = QTextEdit()
+        
+        self.label1 = QLabel(self)
+        self.label2 = QLabel(self)
+        self.label3 = QLabel(self)
+        self.label4 = QLabel(self)
+        
+        self.coordinate_counter = 0 #좌표의 개수들
+        
+        #좌표 개수들 합을 표시할 라벨
+        self.number_shot_label = QLabel(f'{self.coordinate_counter}', self)
+        self.number_shot_label.setGeometry(850,30,150,30)
+        self.number_shot_label.setFont(QFont('Arial', 15))
+        self.number_shot_label.setStyleSheet("color: black;")
+     
+    def init_ui(self):
+        
+        self.setWindowTitle('X-target')
+        self.setWindowIcon(QIcon('target.png'))
+        self.setGeometry(0, 0, 1500, 900)
+
+        #메인 window을 변경할 색 지정
+        window_background_color = QColor(85,107,47)
+        text_color = QColor(255, 255, 255)
+
+        #메인 배경색만 변경하도록 palette 사용
+        palette = QPalette()
+        palette.setColor(QPalette.Window, window_background_color)
+        palette.setColor(QPalette.WindowText, text_color)
+        self.setPalette(palette)
+
+        #메인 widget
+        back_widget = QWidget(self)
+        back_widget.setGeometry(30, 20, 1450, 130)
+        back_widget.setStyleSheet("background-color: #98fb98; color: white; border-style: solid; border-width: 2px; border-color: white; border-radius: 10px;")
+
+        #키네틱스 로고
+        pixmap0 = QPixmap('kinetix_logo_removebg.png')
+        kinetix_logo_label = QLabel(self)
+        kinetix_logo_label.setPixmap(pixmap0)
+        kinetix_logo_label.setScaledContents(True)
+        kinetix_logo_label.setGeometry(50, 15, 220, 80)
+
+        #현재시간
+        self.datetime_timer = QTimer(self)
+        self.datetime_timer.timeout.connect(self.updateDateTime)
+        self.datetime_timer.start(1000)  #1초마다 시간 업데이트
+
+        #현재 날짜와 시간
+        self.dateTimeLabel = QLabel(self)
+        self.dateTimeLabel.setGeometry(40, 85, 230, 60)
+        self.dateTimeLabel.setAlignment(Qt.AlignCenter)
+        self.dateTimeLabel.setStyleSheet("background-color: #008000; color: white; border-radius: 10px;")
+        self.dateTimeLabel.setFont(QFont('Arial', 15))
+
+        #탄약 수
+        shot_label = QLabel('# of Shot', self)
+        shot_label.setGeometry(700, 30, 150, 30)
+        shot_label.setFont(QFont('Arial', 15))
+        shot_label.setStyleSheet("background-color: #775e36;")
+
+        #타겟 거리
+        range_label = QLabel('Target Range', self)
+        range_label.setGeometry(1000,30,150,30)
+        range_label.setFont(QFont('Arial', 15))
+        range_label.setStyleSheet("background-color: #775e36;")
+
+    def update_data(self):
+        #데이터 수신
+        while True:
+            #chunk로 데이터 나누기. 전체 데이터를 한번에 메모리에 로드하는 것은 효율적이지 않을 수 있음
+            #recv 단위는 수신되는 데이터 양에 따라 조정
+            chunk = c.recv(2048).decode()
+            #break를 안걸어도 되지만 위에서 update_data를 1초에 한번씩 가져오도록 이미 설정해놨기 때문에 있어도 됨.
+            break
+        
+        #데이터 처리 / chunk에 저장되어 있는 데이터를 \n을 기준으로 나눔. 따라서 수신되는 \n의 개수는 상관없음
+        data_segments = chunk.split('\n')
+
+        #데이터 수신 시간 기록
+        received_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+        #카메라 데이터 파싱
+        #각 카메라 데이터를 저장하기 위한 딕셔너리 초기화
+        #각 카메라의 이름은 키, 해당 카메라의 데이터는 값
+        camera_data = {}
+        #현재 처리 중인 데이터가 어떤 카메라의 데이터인지를 나타냄
+        #초기에는 아무 카메라 데이터도 처리중이지 않으므로 None으로 초기화
+        current_camera = None
+        #camera1, 2, 3, 4의 좌표값들의 수들을 계산하기 위한 리스트를 초기화한 형태
+        camera_counters = [0, 0, 0, 0]
+        
+        #chunk.split('\n')으로 나눈 data_segments 반복
+        for segment in data_segments:
+            #segment에서 camera 문자열이 처음으로 나타나는 인덱스 찾기
+            camera_index = segment.find("camera")
+            #find는 찾는 문자열이 있으면 해당 문자열이 시작되는 인덱스를 반환
+            #찾지 못하면 -1을 반환함. 따라서 camera_index가 -1이 아니라면 camera 문자열이 현재 세그먼트에 있다는 것을 의미
+            if camera_index != -1:
+                #camera문자열이 있는 부분부터 세그먼트의 끝까지를 current_camera에 저장
+                #현재 처리 중인 데이터가 어떤 카메라의 데이터인지를 나타냄
+                current_camera = segment[camera_index:]
+                #camera_data딕셔너리에 현재 처리 중인 카메라의 이름 'current_amera'를 키로 하고,
+                #해당 카메라의 세그먼트를 값으로 하는 항목을 추가
+                camera_data[current_camera] = segment
+            #만약 camera 문자열이 없지만 이전에 시작한 카메라가 있다면, 현재 세그먼트를 해당 카메라의 데이터에 추가    
+            elif current_camera:
+                camera_data[current_camera] += '\n' + segment
+        #따라서 camera 문자열이 있는 세그먼트를 발견하면 그 순간부터 current_camera는 해당 카메라의 이름으로 설정되고, 다음 세그먼트에서는 이 카메라에 대한 데이터로 계속 추가
+
+        #camera1,2,3,4에 해당하는 카메라의 데이터를 가져옴
+        camera1_data = camera_data.get("camera1", "")
+        camera2_data = camera_data.get("camera2", "")
+        camera3_data = camera_data.get("camera3", "")
+        camera4_data = camera_data.get("camera4", "")
+
+        #데이터 수신 확인용 디버깅
+        print(f"데이터 수신 시간: {received_time}")
+        print(camera1_data)
+        print(camera2_data)
+        print(camera3_data)
+        print(camera4_data)
+
+        #x,y,w,h에 맞는 빨간색 십자선을 그리는 함수 생성
+        def draw_crosses(data, label):
+            painter = QPainter(label.pixmap())
+            pen = QPen(QColor(255, 0, 0))
+            pen.setWidth(5)
+            painter.setPen(pen)
+
+            for x, y, width, height in data:
+                #중심 좌표 계산
+                center_x = x + width // 2
+                center_y = y + height // 2 
+
+                #center 중심 길이 5 라인
+                #센터를 중심으로 양끝으로 5를 빼고 더한 것이라 다른 길이로 설정하고 싶으면 숫자만 변경하면 됨
+                painter.drawLine(center_x -5, center_y, center_x + 5, center_y)
+                painter.drawLine(center_x, center_y - 5, center_x, center_y + 5)
+                #아래는 w,h를 길이로 두고 계산하는 식
+                #painter.drawLine(center_x - width //2, center_y, center_x + width // 2, center_y)   #가로선
+                #painter.drawLine(center_x, center_y - height //2, center_x, center_y + height //2)    #세로선
+
+        #pixmap 설정
+        pixmap1 = QPixmap('dummy2_1.png')   #사진은 대체해야함
+        pixmap1 = pixmap1.scaled(350, 350, Qt.KeepAspectRatio)
+
+        pixmap2 = QPixmap('dummy3_1.png')
+        pixmap2 = pixmap2.scaled(350, 350, Qt.KeepAspectRatio)
+
+        #label1,2,3,4 설정
+        #여기서 pixmap의 크기를 고정해 놓았기 때문에 카메라의 좌표값이 사진보다 크면 바깥에 형성되는 거라 사진에는 표시가 안됨
+        #이 문제를 처리하려면 사진 내부의 가상의 크기를 조정하는 방식이 있는데
+        #아직은 연구중
+        self.label1.setPixmap(pixmap1)    #dummy.png를 label 가운데 위치
+        self.label1.setGeometry(50, 160, pixmap1.width(), pixmap1.height())
+        self.label1.setStyleSheet("background-color: white;")
+
+        self.label2.setPixmap(pixmap2)
+        self.label2.setGeometry(430, 160, pixmap2.width(), pixmap2.height())
+        self.label2.setStyleSheet("background-color: white;")
+
+        self.label3.setPixmap(pixmap1)
+        self.label3.setGeometry(810, 160, pixmap1.width(), pixmap1.height())
+        self.label3.setStyleSheet("background-color: white;")
+
+        self.label4.setPixmap(pixmap2)
+        self.label4.setGeometry(1200, 160, pixmap2.width(), pixmap2.height())
+        self.label4.setStyleSheet("background-color: white;")
+
+        #존재하는 데이터 값을 따로 저장, 기록
+        #self 객체의 속성(attribute)중에서 'existing_data'라는 속성을 가져오려고 시도
+        existing_data = getattr(self, 'existing_data', {})
+
+        #모든 카메라 데이터를 처리
+        camera_data_list = [camera1_data, camera2_data, camera3_data, camera4_data]
+        labels = [self.label1, self.label2, self.label3, self.label4]
+
+        #위에서 정의한 draw_crosses 함수를 사용, 모든 카메라와 라벨에 좌표 시각화
+        for i, (camera_data, label) in enumerate(zip(camera_data_list, labels)):
+            data_start = camera_data.find("[")
+
+            #find로 찾는게 있다면, data_start부터 data_string에 저장
+            if data_start != -1:
+                data_string = camera_data[data_start:]
+                #data_string에 있는 리스트나 튜플등의 데이터 구조를 표현하는 문자열을
+                #파이썬 리스트나 튜플로 해석하여 반환
+                #즉 "[1,2,3]" ==> [1,2,3]
+                new_data = eval(data_string)
+
+                #new data가 생길 때 마다 existing_data에 삽입
+                existing_data[i] = existing_data.get(i, []) + new_data
+            #지금 당장 데이터 값이 없더라도 실행될 수 있도록 데이터가 없으면 빈 리스트를 반환
+            data_for_label = existing_data.get(i, [])
+            draw_crosses(data_for_label, label)
+            label.repaint()
+            
+        self.existing_data = existing_data
+
+        #camera_data_list의 각 요소에 대해 인덱스와 함께 반복
+        for i, camera_data in enumerate(camera_data_list):
+            data_start = camera_data.find("[")
+            #[ 이후의 문자열을 가져옴
+            if data_start != -1:
+                data_string = camera_data[data_start:]
+                new_data = eval(data_string)
+                #현재 카메라의 좌표 데이터 수를 리스트에 누적
+                camera_counters[i] += len(new_data)
+        
+        #위에서 설정한 camera_counter를 이용해 좌표값들의 개수를 계산
+        self.coordinate_counter += sum(camera_counters)
+        print(f"Total Coordinates Count: {self.coordinate_counter}")
+
+        self.number_shot_label.setText(f'{self.coordinate_counter}')
+
+        #camera 1,2,3,4 좌표값을 출력하는 라벨
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+
+        scroll_area = QScrollArea(central_widget)
+        scroll_area.setGeometry(500, 550, 1000, 300)
+        scroll_area.setWidgetResizable(True)
+        
+        scroll_content = QWidget()
+        scroll_area.setWidget(scroll_content)
+
+        layout = QVBoxLayout(scroll_content)
+
+        #데이터 수신 시각과 camera1,2,3,4 데이터를 출력
+        combined_data = f"{received_time}\n{camera1_data}\n{camera2_data}\n\n{camera3_data}\n\n{camera4_data}"
+        
+        current_text = self.text_edit1.toPlainText()
+        self.text_edit1.setPlainText(combined_data + current_text)
+        
+        text_edit1 = QTextEdit()
+        text_edit1.setPlainText(combined_data)
+        text_edit1.setStyleSheet("background-color: white;")
+
+        layout.addWidget(self.text_edit1)
+
+        exit_button = QPushButton('EXIT', self)
+        exit_button.setGeometry(1300, 25, 150, 50)
+        exit_button.clicked.connect(QCoreApplication.instance().quit)
+        exit_button.setStyleSheet("""
+                                  QPushButton {
+                                  background-color: #ff0000; 
+                                  color: white;
+                                  border: 1px solid black;
+                                  border-radius: 5px;
+                                  padding: 5px 10 px;
+                                  }
+                                  QPushButton:hover {
+                                  background-color: #b93f25;
+                                  }
+                                  QPushButton:pressed {
+                                  background-color: #932019;
+                                  }
+                                  QPushButton:disabled {
+                                  background-color: #808080;
+                                  color: #a0a0a0;
+                                  }
+                                  """)
+        exit_button.raise_()
+        exit_button.show()
+        exit_button.setFont(QFont("Arial", 14))
+
+        new_value = 50
+        self.range_slider.setValue(new_value)
+
+        self.show()
+
+    def updateDateTime(self):
+        currentDateTime = QDateTime.currentDateTime()
+        formattedDateTime = currentDateTime.toString('yyyy-MM-dd \n hh:mm:ss')
+        self.dateTimeLabel.setText(formattedDateTime)       
+
+    def handle_slider_change(self, value):
+        print(f"Slider Value Changed: {value}")
+
+def main():
+    app = QApplication(sys.argv)
+    viewer = XTarget()
+    sys.exit(app.exec_())
+
+if __name__ == '__main__':
+    main()
