@@ -1,0 +1,32 @@
+import socket
+import time
+
+IP = '127.0.0.1'  # 테스트용 IP 주소 (localhost)
+PORT = 9988  # 테스트용 포트 번호
+
+# 서버 소켓 생성
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+# IP와 포트에 바인딩
+server_socket.bind((IP, PORT))
+
+# 클라이언트의 연결을 대기
+server_socket.listen(1)  # 최대 1개의 대기 연결
+
+print(f"서버가 {IP}:{PORT}에서 실행 중입니다.")
+
+while True:
+    # 클라이언트 연결 수락
+    client_socket, client_address = server_socket.accept()
+    print(f"클라이언트 {client_address}가 연결되었습니다.")
+
+    # 클라이언트로 데이터 전송
+    data2 = "camera1\n[(141, 253, 14, 14), (228, 132, 18, 24), (229, 134, 11, 14), (199, 38, 12, 7), (236, 84, 10, 12)]\n\ncamera2\n[(211, 179, 12, 14), (218, 132, 11, 12), (391, 311, 7, 17), (115, 280, 17, 21), (379, 309, 6, 15), (204, 178, 12, 14)]\n"
+    data3 = "camera3\n[(196, 242, 11, 16), (167, 73, 11, 11), (217, 54, 13, 18), (244, 5, 8, 7)]\ncamera4\n[(262, 89, 8, 12), (411, 183, 14, 31), (380, 120, 16, 26), (203, 187, 12, 13), (216, 139, 9, 12)]\n"
+
+    # 데이터를 클라이언트로 전송
+    client_socket.send(data2.encode())
+    client_socket.send(data3.encode())
+
+    # 클라이언트 소켓 닫기
+    client_socket.close()
